@@ -9,13 +9,21 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $products = Product::query()
-            ->when($request->search, function ($query) use ($request) {
-                $query->where('product_id', 'like', '%' . $request->search . '%')
-                    ->orWhere('description', 'like', '%' . $request->search . '%');
-            })
-            ->orderBy($request->sort_by ?? 'name', $request->order ?? 'asc')
-            ->paginate(10);
+        $query = Product::query();
+
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where('product_id', 'like', '%' . $search . '%')
+                ->orWhere('description', 'like', '%' . $search . '%');
+        }
+
+        if ($request->has('sort_by')) {
+            $sortBy = $request->sort_by;
+            $order = $request->order ?? 'asc';
+            $query->orderBy($sortBy, $order);
+        }
+
+        $products = $query->paginate(10);
 
         return view('products.index', compact('products'));
     }
@@ -27,48 +35,59 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'product_id' => 'required|unique:products',
-            'name' => 'required',
+
+        $validated = $request->validate([
+            'product_id' => 'required|unique:products|max:255',
+            'name' => 'required|max:255',
+            'description' => 'nullable',
             'price' => 'required|numeric',
+            'stock' => 'nullable|integer',
+            'image' => 'nullable|string',
         ]);
 
-        Product::create($request->all());
+        Product::create($validated);
 
-        return redirect()->route('products.index');
+        return redirect()->route('products.index')->with('success', 'Product created successfully');
     }
 
     public function show($id)
     {
         $product = Product::findOrFail($id);
+
         return view('products.show', compact('product'));
     }
 
     public function edit($id)
     {
         $product = Product::findOrFail($id);
+
         return view('products.edit', compact('product'));
     }
-
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'product_id' => 'required|unique:products,product_id,' . $id,
-            'name' => 'required',
+        $validated = $request->validate([
+            'product_id' => 'required|max:255|unique:products,product_id,' . $id,
+            'name' => 'required|max:255',
+            'description' => 'nullable',
             'price' => 'required|numeric',
+            'stock' => 'nullable|integer',
+            'image' => 'nullable|string',
         ]);
 
         $product = Product::findOrFail($id);
-        $product->update($request->all());
 
-        return redirect()->route('products.index');
+        $product->update($validated);
+
+        return redirect()->route('products.show', $id)->with('success', 'Product updated successfully');
     }
 
     public function destroy($id)
     {
+
         $product = Product::findOrFail($id);
+
         $product->delete();
 
-        return redirect()->route('products.index');
+        return redirect()->route('products.index')->with('success', 'Product deleted successfully');
     }
 }
